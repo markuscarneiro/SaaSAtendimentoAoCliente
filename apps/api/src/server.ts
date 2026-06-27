@@ -6,6 +6,7 @@ import type Redis from 'ioredis'
 import { checkDatabase, checkRedis } from './infra/health'
 import { authRoutes } from './modules/auth/auth.route'
 import { conversationRoutes } from './modules/conversations/conversation.route'
+import { userRoutes } from './modules/users/user.route'
 import { AppError } from './common/errors'
 import { errorEnvelope } from './common/reply'
 
@@ -95,6 +96,7 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
 
   if (opts.prisma) {
     app.register(conversationRoutes, { prisma: opts.prisma })
+    app.register(userRoutes, { prisma: opts.prisma })
   }
 
   return app
