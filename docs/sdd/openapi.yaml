@@ -1,0 +1,815 @@
+# Projeto Desenvolvido na Data Science Academy
+openapi: 3.1.0
+info:
+  title: SaaS de Atendimento ao Cliente API
+  version: 1.1.0
+  description: Contrato da API REST do Projeto 1 (atendimento ao cliente, sem IA/RAG).
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Desenvolvimento local
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Users
+  - name: Conversations
+  - name: Analytics
+  - name: Health
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check da API e dos serviços (rota pública, sem envelope).
+      security: []
+      responses:
+        "200":
+          description: Serviços saudáveis.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Algum serviço indisponível.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /auth/register-organization:
+    post:
+      tags: [Auth]
+      summary: Cria organização inicial e usuário owner.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterOrganizationRequest"
+      responses:
+        "201":
+          description: Organização criada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterOrganizationResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Autentica usuário com email e senha.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login bem-sucedido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /me:
+    get:
+      tags: [Auth]
+      summary: Retorna usuário autenticado, organização e permissões.
+      responses:
+        "200":
+          description: Usuário autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+  /users:
+    get:
+      tags: [Users]
+      summary: Lista membros da organização autenticada (exige users.read).
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Direction"
+      responses:
+        "200":
+          description: Lista paginada de membros.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Users]
+      summary: Cria usuário e vínculo com a organização (exige users.manage).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: Usuário criado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgMemberResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /users/{userId}:
+    patch:
+      tags: [Users]
+      summary: Atualiza papel e/ou status do vínculo do usuário (exige users.manage).
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: Vínculo atualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgMemberResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /conversations:
+    get:
+      tags: [Conversations]
+      summary: Lista conversas da organização autenticada.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Direction"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ConversationStatus"
+        - name: assignedUserId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista paginada de conversas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationListResponse"
+    post:
+      tags: [Conversations]
+      summary: Cria conversa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConversationRequest"
+      responses:
+        "201":
+          description: Conversa criada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /conversations/{conversationId}:
+    get:
+      tags: [Conversations]
+      summary: Retorna detalhe da conversa.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      responses:
+        "200":
+          description: Conversa com mensagens.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationDetailResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Conversations]
+      summary: Atualiza atribuição e/ou status da conversa.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateConversationRequest"
+      responses:
+        "200":
+          description: Conversa atualizada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /conversations/{conversationId}/messages:
+    get:
+      tags: [Conversations]
+      summary: Lista mensagens da conversa, paginadas, em ordem crescente de createdAt.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Lista paginada de mensagens.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Conversations]
+      summary: Registra mensagem na conversa.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMessageRequest"
+      responses:
+        "201":
+          description: Mensagem criada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /analytics/overview:
+    get:
+      tags: [Analytics]
+      summary: Retorna métricas de atendimento.
+      parameters:
+        - name: from
+          in: query
+          description: "Início do período (inclusive). Default: 30 dias antes de to. from > to retorna 400."
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: "Fim do período (inclusive). Default: data atual."
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Overview de métricas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsOverviewResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Sort:
+      name: sort
+      in: query
+      description: Campo de ordenação. Valores aceitos dependem do recurso.
+      schema:
+        type: string
+    Direction:
+      name: direction
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    ValidationError:
+      description: Payload inválido.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthenticated:
+      description: Usuário não autenticado.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Usuário sem permissão.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Recurso não encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: "Conflito de regra de negócio (ex.: email duplicado, transição de status inválida)."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RateLimited:
+      description: Limite de uso excedido.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    # ---------------------------------------------------------------------
+    # Envelopes e metadados
+    # ---------------------------------------------------------------------
+    Envelope:
+      type: object
+      required: [data, meta, error]
+      properties:
+        data: {}
+        meta:
+          type: object
+        error:
+          nullable: true
+    PaginationMeta:
+      type: object
+      required: [page, pageSize, total]
+      properties:
+        page:
+          type: integer
+          example: 1
+        pageSize:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 100
+    ErrorResponse:
+      type: object
+      required: [data, meta, error]
+      properties:
+        data:
+          type: "null"
+        meta:
+          type: object
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - UNAUTHENTICATED
+                - FORBIDDEN
+                - NOT_FOUND
+                - CONFLICT
+                - RATE_LIMITED
+            message:
+              type: string
+            details:
+              type: array
+              items: {}
+    # ---------------------------------------------------------------------
+    # Enums de domínio (ver domain-model.md / database-schema.md)
+    # ---------------------------------------------------------------------
+    Role:
+      type: string
+      enum: [owner, admin, manager, agent, viewer]
+    AssignableRole:
+      description: Papéis atribuíveis via API de gestão de usuários (owner é exclusivo do registro da organização).
+      type: string
+      enum: [admin, manager, agent, viewer]
+    MemberStatus:
+      type: string
+      enum: [active, inactive]
+    ConversationStatus:
+      type: string
+      enum: [open, waiting_customer, waiting_agent, resolved, closed]
+    ConversationPriority:
+      type: string
+      enum: [low, normal, high]
+    AuthorType:
+      type: string
+      enum: [customer, agent, system]
+    # ---------------------------------------------------------------------
+    # Entidades
+    # ---------------------------------------------------------------------
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    OrgMember:
+      description: Usuário com papel e status do vínculo na organização.
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/Role"
+        status:
+          $ref: "#/components/schemas/MemberStatus"
+    HealthResponse:
+      description: Resposta do health check (exceção ao envelope data/meta/error).
+      type: object
+      required: [status, services]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        services:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [ok, error]
+            redis:
+              type: string
+              enum: [ok, error]
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+        organizationId:
+          type: string
+        customerId:
+          type: string
+        assignedUserId:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ConversationStatus"
+        priority:
+          $ref: "#/components/schemas/ConversationPriority"
+        channel:
+          type: string
+        subject:
+          type: string
+          nullable: true
+        lastMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        conversationId:
+          type: string
+        authorType:
+          $ref: "#/components/schemas/AuthorType"
+        authorId:
+          type: string
+          nullable: true
+        content:
+          type: string
+        metadata:
+          type: object
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    AnalyticsByAgent:
+      type: object
+      properties:
+        userId:
+          type: string
+        assignedConversations:
+          type: integer
+        messagesSent:
+          type: integer
+    AnalyticsOverview:
+      type: object
+      properties:
+        conversationsTotal:
+          type: integer
+        openConversations:
+          type: integer
+        resolvedConversations:
+          type: integer
+        closedConversations:
+          type: integer
+        messagesTotal:
+          type: integer
+        avgFirstResponseSeconds:
+          type: integer
+        byAgent:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsByAgent"
+    # ---------------------------------------------------------------------
+    # Requests
+    # ---------------------------------------------------------------------
+    RegisterOrganizationRequest:
+      type: object
+      required: [organizationName, ownerName, ownerEmail, password]
+      properties:
+        organizationName:
+          type: string
+        ownerName:
+          type: string
+        ownerEmail:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    CreateConversationRequest:
+      type: object
+      required: [customer]
+      properties:
+        customer:
+          type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+            email:
+              type: string
+              format: email
+        subject:
+          type: string
+        channel:
+          type: string
+          default: manual
+    UpdateConversationRequest:
+      type: object
+      minProperties: 1
+      properties:
+        assignedUserId:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ConversationStatus"
+    CreateMessageRequest:
+      type: object
+      required: [authorType, content]
+      properties:
+        authorType:
+          description: Apenas customer ou agent; system é reservado ao backend. authorId é derivado no servidor.
+          type: string
+          enum: [customer, agent]
+        content:
+          type: string
+          maxLength: 10000
+    CreateUserRequest:
+      type: object
+      required: [name, email, password, role]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+        role:
+          $ref: "#/components/schemas/AssignableRole"
+    UpdateUserRequest:
+      type: object
+      minProperties: 1
+      properties:
+        role:
+          $ref: "#/components/schemas/AssignableRole"
+        status:
+          $ref: "#/components/schemas/MemberStatus"
+    # ---------------------------------------------------------------------
+    # Responses (envelope com data tipado)
+    # ---------------------------------------------------------------------
+    RegisterOrganizationResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                organization:
+                  $ref: "#/components/schemas/Organization"
+                user:
+                  $ref: "#/components/schemas/User"
+    LoginResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                accessToken:
+                  type: string
+                user:
+                  $ref: "#/components/schemas/User"
+                organization:
+                  $ref: "#/components/schemas/Organization"
+                role:
+                  $ref: "#/components/schemas/Role"
+    MeResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: "#/components/schemas/User"
+                organization:
+                  $ref: "#/components/schemas/Organization"
+                role:
+                  $ref: "#/components/schemas/Role"
+                permissions:
+                  type: array
+                  items:
+                    type: string
+    OrgMemberResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/OrgMember"
+    UserListResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/OrgMember"
+            meta:
+              $ref: "#/components/schemas/PaginationMeta"
+    ConversationResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Conversation"
+    ConversationListResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/Conversation"
+            meta:
+              $ref: "#/components/schemas/PaginationMeta"
+    ConversationDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                conversation:
+                  $ref: "#/components/schemas/Conversation"
+                customer:
+                  $ref: "#/components/schemas/Customer"
+                messages:
+                  description: As 20 mensagens mais recentes, em ordem crescente de createdAt. Histórico completo via GET /conversations/{conversationId}/messages.
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Message"
+    MessageListResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/Message"
+            meta:
+              $ref: "#/components/schemas/PaginationMeta"
+    MessageResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Message"
+    AnalyticsOverviewResponse:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/AnalyticsOverview"

@@ -1,0 +1,43 @@
+# Projeto Desenvolvido na Data Science Academy
+# Environment
+.env
+.env.*
+!.env.example
+
+# Claude Code local/personal files
+CLAUDE.local.md
+.claude/settings.local.json
+
+# OS/editor
+.DS_Store
+Thumbs.db
+__MACOSX/
+.vscode/
+.idea/
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Test/cache outputs
+coverage/
+.turbo/
+.cache/
+*.log
+
+# Runtime/generated
+tmp/
+temp/
+uploads/
+
+# pnpm
+.pnpm-store/
+
+# Docker env (não commitar valores reais)
+!.env.docker.example
+
