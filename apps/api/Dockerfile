@@ -3,7 +3,7 @@
 # Build context: raiz do projeto (docker compose build)
 #
 # Stage 1 deps    — instala dependências do workspace
-# Stage 2 build   — compila TypeScript e prepara deploy
+# Stage 2 build   — gera Prisma Client, compila TypeScript e prepara deploy
 # Stage 3 runtime — imagem mínima de produção
 # ============================================================
 
@@ -27,26 +27,31 @@ FROM deps AS build
 
 WORKDIR /app
 
+# Schema Prisma deve chegar antes do generate
+COPY apps/api/prisma ./apps/api/prisma
 COPY apps/api/tsconfig.json ./apps/api/
 COPY apps/api/src ./apps/api/src
 
-# Compila TypeScript
+# 1. Gera o Prisma Client tipado (deve rodar antes do tsc)
+RUN pnpm --filter @saas-atendimento/api run db:generate
+
+# 2. Compila TypeScript
 RUN pnpm --filter @saas-atendimento/api run build
 
-# Deployment self-contained: resolve symlinks do pnpm, inclui só prod deps
+# 3. Deployment self-contained: resolve symlinks, inclui só prod deps
 RUN pnpm deploy --filter @saas-atendimento/api --prod /deploy
 
 # ---- Stage 3: runtime ---------------------------------------
 FROM node:22-alpine AS runtime
 
-# openssl: necessário para o Prisma em Alpine (ADR-0003)
+# openssl: necessário para o Prisma Query Engine em Alpine (ADR-0003)
 RUN apk add --no-cache openssl
 
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Dependências de produção (via pnpm deploy — sem symlinks)
+# Dependências de produção (via pnpm deploy — sem symlinks do pnpm store)
 COPY --from=build /deploy/node_modules ./node_modules
 # Código compilado
 COPY --from=build /app/apps/api/dist ./dist
@@ -55,7 +60,7 @@ COPY --from=build /deploy/package.json ./
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- http://localhost:3000/api/v1/health || exit 1
 
 CMD ["node", "dist/index.js"]

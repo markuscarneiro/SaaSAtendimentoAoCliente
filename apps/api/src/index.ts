@@ -1,16 +1,18 @@
 import { parseEnv } from './config/env'
 import { buildApp } from './server'
 import { getRedis } from './infra/redis'
+import { getDatabase } from './infra/database'
 
 async function main() {
   const env = parseEnv()
+  const prisma = getDatabase()
   const redis = getRedis(env.REDIS_URL)
 
   const app = buildApp({
     nodeEnv: env.NODE_ENV,
     appBaseUrl: env.APP_BASE_URL,
+    prisma,
     redis,
-    databaseUrl: env.DATABASE_URL,
   })
 
   try {

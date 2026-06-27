@@ -1,7 +1,8 @@
-import { describe, it, expect, afterAll } from 'vitest'
+import { describe, it, expect, afterAll, vi } from 'vitest'
+import type { PrismaClient } from '@prisma/client'
 import { buildApp } from '../server'
 
-// Cenário 1: sem dependências reais → defaults 'ok' (testa roteamento)
+// Cenário 1: sem dependências reais → defaults 'ok' (testa roteamento e formato)
 describe('GET /api/v1/health — sem infra real', () => {
   const app = buildApp({ nodeEnv: 'test' })
 
@@ -20,13 +21,13 @@ describe('GET /api/v1/health — sem infra real', () => {
   })
 })
 
-// Cenário 2: DATABASE_URL aponta para porta fechada → database: 'error'
+// Cenário 2: Prisma mock que lança erro → database: 'error', HTTP 503
 describe('GET /api/v1/health — database inacessível', () => {
-  // Porta 19999 em loopback: connection refused imediato
-  const app = buildApp({
-    nodeEnv: 'test',
-    databaseUrl: 'postgresql://x:x@127.0.0.1:19999/x',
-  })
+  const mockPrisma = {
+    $queryRaw: vi.fn().mockRejectedValue(new Error('connection refused')),
+  } as unknown as PrismaClient
+
+  const app = buildApp({ nodeEnv: 'test', prisma: mockPrisma })
 
   afterAll(async () => {
     await app.close()

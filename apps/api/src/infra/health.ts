@@ -1,29 +1,13 @@
-import net from 'net'
+import type { PrismaClient } from '@prisma/client'
 import type Redis from 'ioredis'
 
 type ServiceStatus = 'ok' | 'error'
 
-function tcpCheck(host: string, port: number, timeoutMs = 3000): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = net.createConnection({ host, port })
-    socket.setTimeout(timeoutMs)
-    socket.on('connect', () => {
-      socket.destroy()
-      resolve(true)
-    })
-    socket.on('error', () => resolve(false))
-    socket.on('timeout', () => {
-      socket.destroy()
-      resolve(false)
-    })
-  })
-}
-
-export async function checkDatabase(databaseUrl: string): Promise<ServiceStatus> {
+// Em T1.2 usávamos TCP; agora que Prisma existe, usamos $queryRaw (deployment-spec §5).
+export async function checkDatabase(prisma: PrismaClient): Promise<ServiceStatus> {
   try {
-    const url = new URL(databaseUrl)
-    const ok = await tcpCheck(url.hostname, parseInt(url.port || '5432', 10))
-    return ok ? 'ok' : 'error'
+    await prisma.$queryRaw`SELECT 1`
+    return 'ok'
   } catch {
     return 'error'
   }

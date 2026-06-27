@@ -1,0 +1,130 @@
+// Schema Prisma — SaaS de Atendimento ao Cliente
+// Spec de referência: docs/sdd/database-schema.md, docs/sdd/domain-model.md
+// ADR-0003: Prisma 6.x como ORM e ferramenta de migrations
+
+generator client {
+  provider      = "prisma-client-js"
+  // linux-musl-openssl-3.0.x: Alpine 3.17+ (Node 22 Alpine — ADR-0003)
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---- organizations (§3.1) -----------------------------------
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  status    String   @default("active") // active | inactive
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members       OrganizationMember[]
+  customers     Customer[]
+  conversations Conversation[]
+  messages      Message[]
+
+  @@index([status])
+  @@map("organizations")
+}
+
+// ---- users (§3.2) -------------------------------------------
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  status       String   @default("active") // active | inactive
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  memberships           OrganizationMember[]
+  assignedConversations Conversation[]      @relation("AssignedUser")
+
+  @@map("users")
+}
+
+// ---- organization_members (§3.3) ----------------------------
+model OrganizationMember {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  role           String   // owner | admin | manager | agent | viewer
+  status         String   @default("active") // active | inactive
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([organizationId, role])
+  @@map("organization_members")
+}
+
+// ---- customers (§3.4) ---------------------------------------
+// Nota: unique parcial (organization_id, external_ref WHERE external_ref IS NOT NULL)
+// não é expressável em Prisma — adicionado na migration SQL via raw DDL (ADR-0003).
+model Customer {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  email          String?
+  externalRef    String?  @map("external_ref")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  conversations Conversation[]
+
+  @@index([organizationId])
+  @@index([organizationId, email])
+  @@map("customers")
+}
+
+// ---- conversations (§3.5) -----------------------------------
+model Conversation {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  customerId     String    @map("customer_id")
+  assignedUserId String?   @map("assigned_user_id")
+  status         String    @default("open") // open|waiting_customer|waiting_agent|resolved|closed
+  priority       String    @default("normal") // campo reservado; MVP sempre 'normal'
+  channel        String    @default("manual")
+  subject        String?
+  lastMessageAt  DateTime? @map("last_message_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer     Customer     @relation(fields: [customerId], references: [id])
+  assignedUser User?        @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  messages     Message[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, assignedUserId])
+  @@index([organizationId, lastMessageAt])
+  @@map("conversations")
+}
+
+// ---- messages (§3.6) ----------------------------------------
+model Message {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  conversationId String   @map("conversation_id")
+  authorType     String   @map("author_type") // customer | agent | system
+  authorId       String?  @map("author_id")
+  content        String
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@index([organizationId, conversationId, createdAt])
+  @@map("messages")
+}
