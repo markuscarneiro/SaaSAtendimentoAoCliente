@@ -5,6 +5,7 @@ import type { PrismaClient } from '@prisma/client'
 import type Redis from 'ioredis'
 import { checkDatabase, checkRedis } from './infra/health'
 import { authRoutes } from './modules/auth/auth.route'
+import { conversationRoutes } from './modules/conversations/conversation.route'
 import { AppError } from './common/errors'
 import { errorEnvelope } from './common/reply'
 
@@ -81,7 +82,7 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
     })
   })
 
-  // ---- Auth routes — only registered when infra deps are present ----
+  // ---- Routes — only registered when infra deps are present ------
   if (opts.prisma && opts.redis) {
     app.register(authRoutes, {
       prisma: opts.prisma,
@@ -90,6 +91,10 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
       rateLimitWindowSeconds,
       jwtExpiresIn,
     })
+  }
+
+  if (opts.prisma) {
+    app.register(conversationRoutes, { prisma: opts.prisma })
   }
 
   return app
