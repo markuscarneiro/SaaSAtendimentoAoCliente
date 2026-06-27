@@ -8,8 +8,8 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('24h'),
   APP_BASE_URL: z.string().default('http://localhost:5173'),
-  RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().default(5),
-  RATE_LIMIT_LOGIN_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_LOGIN_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
 })
 
 export type Env = z.infer<typeof envSchema>

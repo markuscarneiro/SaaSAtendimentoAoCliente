@@ -13,6 +13,10 @@ async function main() {
     appBaseUrl: env.APP_BASE_URL,
     prisma,
     redis,
+    jwtSecret: env.JWT_SECRET,
+    jwtExpiresIn: env.JWT_EXPIRES_IN,
+    rateLimitMax: env.RATE_LIMIT_LOGIN_MAX,
+    rateLimitWindowSeconds: env.RATE_LIMIT_LOGIN_WINDOW_SECONDS,
   })
 
   try {
