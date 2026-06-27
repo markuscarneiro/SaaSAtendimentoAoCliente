@@ -1,29 +1,46 @@
-// Permissions by role — resolved per-request in authenticate middleware (T2.3 formalizes guards)
-const ROLE_PERMISSIONS: Record<string, string[]> = {
-  owner: [
-    'users.manage',
-    'users.read',
-    'conversations.manage',
-    'conversations.read',
-    'analytics.read',
-  ],
+// Permission matrix — authorization-spec.md §4
+// Roles are fixed in MVP; customizable roles are post-MVP (non-goal §1.2).
+
+export const ALL_PERMISSIONS = [
+  'users.read',
+  'users.manage',
+  'conversations.read',
+  'conversations.create',
+  'conversations.manage',
+  'messages.create',
+  'analytics.read',
+] as const
+
+export type Permission = (typeof ALL_PERMISSIONS)[number]
+
+const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
+  owner: ALL_PERMISSIONS,
   admin: [
-    'users.manage',
     'users.read',
-    'conversations.manage',
+    'users.manage',
     'conversations.read',
+    'conversations.create',
+    'conversations.manage',
+    'messages.create',
     'analytics.read',
   ],
   manager: [
     'users.read',
-    'conversations.manage',
     'conversations.read',
+    'conversations.manage',
+    'messages.create',
     'analytics.read',
   ],
-  agent: ['conversations.manage', 'conversations.read'],
-  viewer: ['conversations.read'],
+  agent: [
+    'users.read',
+    'conversations.read',
+    'conversations.create',
+    'conversations.manage',
+    'messages.create',
+  ],
+  viewer: ['conversations.read', 'analytics.read'],
 }
 
 export function getPermissionsForRole(role: string): string[] {
-  return ROLE_PERMISSIONS[role] ?? []
+  return [...(ROLE_PERMISSIONS[role] ?? [])]
 }
