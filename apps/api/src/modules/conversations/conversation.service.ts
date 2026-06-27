@@ -6,7 +6,23 @@ import type {
   ListConversationsParams,
   ListMessagesParams,
   CreateMessageInput,
+  PatchConversationInput,
 } from './conversation.schema'
+
+// ----------------------------------------------------------------
+// Status transition table — conversation-history-spec §4.0.1
+// ----------------------------------------------------------------
+export const VALID_TRANSITIONS: Record<string, string[]> = {
+  open: ['waiting_agent', 'waiting_customer', 'resolved'],
+  waiting_agent: ['waiting_customer', 'resolved'],
+  waiting_customer: ['waiting_agent', 'resolved'],
+  resolved: ['closed', 'open'],
+  closed: ['open'],
+}
+
+interface ServiceLogger {
+  info(obj: Record<string, unknown>, msg: string): void
+}
 
 // ----------------------------------------------------------------
 // Customer resolution (conversation-history-spec §4.1.3)
@@ -176,6 +192,70 @@ export async function listMessages(
   ])
 
   return { data: messages, meta: paginationMeta(total, params) }
+}
+
+// ----------------------------------------------------------------
+// PATCH /conversations/:id — atribuição e status (T2.5)
+// ----------------------------------------------------------------
+export async function patchConversation(
+  prisma: PrismaClient,
+  organizationId: string,
+  conversationId: string,
+  input: PatchConversationInput,
+  log: ServiceLogger,
+) {
+  return prisma.$transaction(async (tx) => {
+    const conversation = await tx.conversation.findFirst({
+      where: { id: conversationId, organizationId },
+    })
+    if (!conversation) throw notFound()
+
+    // Status transition
+    let newStatus = conversation.status
+    if (input.status !== undefined && input.status !== conversation.status) {
+      const allowed = VALID_TRANSITIONS[conversation.status] ?? []
+      if (!allowed.includes(input.status)) {
+        throw conflict(
+          `Invalid status transition: '${conversation.status}' → '${input.status}'`,
+        )
+      }
+      log.info(
+        { conversationId, from: conversation.status, to: input.status },
+        'conversation status changed',
+      )
+      newStatus = input.status
+    }
+
+    // assignedUserId update
+    let newAssignedUserId = conversation.assignedUserId
+    if (input.assignedUserId !== undefined) {
+      if (input.assignedUserId !== null) {
+        const member = await tx.organizationMember.findFirst({
+          where: { userId: input.assignedUserId, organizationId, status: 'active' },
+        })
+        if (!member) throw notFound('Assigned user not found in organization')
+      }
+      if (input.assignedUserId !== conversation.assignedUserId) {
+        log.info(
+          { conversationId, assignedUserId: input.assignedUserId },
+          'conversation assigned',
+        )
+      }
+      newAssignedUserId = input.assignedUserId
+    }
+
+    const updated = await tx.conversation.update({
+      where: { id: conversationId },
+      data: { status: newStatus, assignedUserId: newAssignedUserId },
+    })
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      assignedUserId: updated.assignedUserId,
+      updatedAt: updated.updatedAt,
+    }
+  })
 }
 
 // ----------------------------------------------------------------

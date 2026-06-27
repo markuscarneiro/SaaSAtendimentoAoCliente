@@ -30,7 +30,19 @@ export const createMessageSchema = z.object({
   content: z.string().min(1).max(10000),
 })
 
+export const patchConversationSchema = z
+  .object({
+    assignedUserId: z.string().uuid().nullable().optional(),
+    status: z
+      .enum(['open', 'waiting_customer', 'waiting_agent', 'resolved', 'closed'])
+      .optional(),
+  })
+  .refine((d) => d.assignedUserId !== undefined || d.status !== undefined, {
+    message: 'At least one field (assignedUserId or status) must be provided',
+  })
+
 export type CreateConversationInput = z.infer<typeof createConversationSchema>
 export type ListConversationsParams = z.infer<typeof listConversationsSchema>
 export type ListMessagesParams = z.infer<typeof listMessagesSchema>
 export type CreateMessageInput = z.infer<typeof createMessageSchema>
+export type PatchConversationInput = z.infer<typeof patchConversationSchema>

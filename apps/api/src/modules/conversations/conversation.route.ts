@@ -5,6 +5,7 @@ import {
   listConversationsSchema,
   listMessagesSchema,
   createMessageSchema,
+  patchConversationSchema,
 } from './conversation.schema'
 import {
   createConversation,
@@ -12,6 +13,7 @@ import {
   getConversation,
   listMessages,
   createMessage,
+  patchConversation,
 } from './conversation.service'
 import { ok } from '../../common/reply'
 import { validationError } from '../../common/errors'
@@ -28,6 +30,7 @@ export async function conversationRoutes(app: FastifyInstance, opts: Conversatio
 
   const canReadConversations = requirePermission('conversations.read')
   const canCreateConversation = requirePermission('conversations.create')
+  const canManageConversations = requirePermission('conversations.manage')
   const canCreateMessage = requirePermission('messages.create')
 
   // GET /api/v1/conversations
@@ -87,6 +90,26 @@ export async function conversationRoutes(app: FastifyInstance, opts: Conversatio
         parsed.data,
       )
       return reply.code(200).send({ ...result, error: null })
+    },
+  )
+
+  // PATCH /api/v1/conversations/:id — status e assignedUserId (T2.5)
+  app.patch(
+    '/api/v1/conversations/:id',
+    { preHandler: [authenticate, canManageConversations] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      const parsed = patchConversationSchema.safeParse(request.body)
+      if (!parsed.success) throw validationError('Invalid request payload', parsed.error.issues)
+
+      const result = await patchConversation(
+        prisma,
+        request.authUser!.organizationId,
+        id,
+        parsed.data,
+        request.log as { info(obj: Record<string, unknown>, msg: string): void },
+      )
+      return reply.code(200).send(ok(result))
     },
   )
 
