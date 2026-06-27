@@ -2,7 +2,7 @@
   "name": "saas-atendimento",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@10.x",
+
   "scripts": {
     "up": "docker compose up --build",
     "down": "docker compose down",
