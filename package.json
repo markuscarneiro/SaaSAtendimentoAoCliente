@@ -1,0 +1,16 @@
+{
+  "name": "saas-atendimento",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.x",
+  "scripts": {
+    "up": "docker compose up --build",
+    "down": "docker compose down",
+    "down:v": "docker compose down -v",
+    "ps": "docker compose ps",
+    "logs:api": "docker compose logs -f api",
+    "logs:web": "docker compose logs -f web",
+    "test:api": "docker compose run --rm api pnpm test",
+    "test:web": "docker compose run --rm web pnpm test"
+  }
+}
