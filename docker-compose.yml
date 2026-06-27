@@ -35,6 +35,23 @@ services:
     restart: unless-stopped
 
   # ----------------------------------------------------------
+  # Web — dashboard administrativo (apps/web)
+  # ----------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${API_BASE_URL:-http://localhost:3000}
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    depends_on:
+      - api
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
   # PostgreSQL — banco transacional
   # ----------------------------------------------------------
   postgres:
