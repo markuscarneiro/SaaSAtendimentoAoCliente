@@ -30,6 +30,9 @@ export async function request<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: { message: res.statusText } }))
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('auth:expired'))
+    }
     throw new ApiError(res.status, body?.error?.message ?? res.statusText)
   }
 

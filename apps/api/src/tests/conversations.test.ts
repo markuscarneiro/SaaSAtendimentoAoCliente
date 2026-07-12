@@ -44,9 +44,8 @@ const noOpRedis = {} as unknown as Redis
 // ----------------------------------------------------------------
 type PrismaMock = Record<string, unknown>
 
-function makeApp(prisma: PrismaClient, role = 'owner'): FastifyInstance {
-  const app = buildApp({ nodeEnv: 'test', jwtSecret: JWT_SECRET, prisma, redis: noOpRedis })
-  return app
+function makeApp(prisma: PrismaClient): FastifyInstance {
+  return buildApp({ nodeEnv: 'test', jwtSecret: JWT_SECRET, prisma, redis: noOpRedis })
 }
 
 async function bearerToken(app: FastifyInstance, orgId = ORG_ID): Promise<string> {

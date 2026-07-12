@@ -40,4 +40,5 @@ uploads/
 
 # Docker env (não commitar valores reais)
 !.env.docker.example
+!.env.prod.example
 

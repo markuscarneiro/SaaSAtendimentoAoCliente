@@ -1,0 +1,163 @@
+# docker-compose.prod.yml — ambiente de produção/staging
+#
+# Diferenças em relação ao docker-compose.yml (dev):
+# - api/web usam a stage `runtime` (imagem mínima), não `dev`;
+# - todas as variáveis sensíveis são obrigatórias — sem default inseguro.
+#   A ausência de qualquer uma delas falha o `docker compose up` imediatamente;
+# - Postgres e Redis não expõem porta ao host (somente rede interna);
+# - volumes e rede têm nomes próprios para não colidir com o ambiente de dev
+#   caso os dois rodem na mesma máquina.
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml up --build -d
+#   docker compose -f docker-compose.prod.yml run --rm migrate
+#   docker compose -f docker-compose.prod.yml run --rm smoke-test
+#   docker compose -f docker-compose.prod.yml down
+#
+# Spec de referência: docs/sdd/specs/deployment-spec.md
+
+services:
+
+  # ----------------------------------------------------------
+  # API — backend principal (apps/api)
+  # ----------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (min. 32 characters)}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL is required}
+      RATE_LIMIT_LOGIN_MAX: ${RATE_LIMIT_LOGIN_MAX:-10}
+      RATE_LIMIT_LOGIN_WINDOW_SECONDS: ${RATE_LIMIT_LOGIN_WINDOW_SECONDS:-900}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Web — dashboard administrativo (apps/web)
+  # ----------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runtime
+      args:
+        VITE_API_BASE_URL: ${API_BASE_URL:?API_BASE_URL is required}
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    depends_on:
+      - api
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Migrations — roda `prisma migrate deploy` em container (stage `build`,
+  # que tem o Prisma CLI; a imagem `runtime` só tem as deps de produção)
+  # Uso: docker compose -f docker-compose.prod.yml run --rm migrate
+  # ----------------------------------------------------------
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: build
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    command: ["pnpm", "--filter", "@saas-atendimento/api", "run", "db:migrate"]
+
+  # ----------------------------------------------------------
+  # Smoke test — validação mínima pós-deploy (deployment-spec.md §7)
+  # Uso: docker compose -f docker-compose.prod.yml run --rm smoke-test
+  # ----------------------------------------------------------
+  smoke-test:
+    image: node:22-alpine
+    profiles: ["tools"]
+    volumes:
+      - ./scripts/smoke-test.mjs:/smoke-test.mjs:ro
+    environment:
+      API_URL: http://api:3000
+      WEB_URL: http://web:5173
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
+    networks:
+      - internal
+    command: ["node", "/smoke-test.mjs"]
+
+  # ----------------------------------------------------------
+  # PostgreSQL — banco transacional (sem porta exposta ao host)
+  # ----------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:?POSTGRES_USER is required} -d ${POSTGRES_DB:?POSTGRES_DB is required}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Redis — cache e rate limit (sem porta exposta ao host)
+  # ----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data_prod:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - internal
+    restart: unless-stopped
+
+networks:
+  internal:
+    name: saas-atendimento-prod-internal
+    driver: bridge
+
+volumes:
+  postgres_data_prod:
+    name: saas-atendimento-prod-postgres-data
+  redis_data_prod:
+    name: saas-atendimento-prod-redis-data

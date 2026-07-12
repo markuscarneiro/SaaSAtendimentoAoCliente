@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const createConversationSchema = z.object({
   customer: z.object({
     name: z.string().min(1).max(255),
-    email: z.string().email().max(255).optional(),
+    email: z.string().trim().email().max(255).optional(),
   }),
   subject: z.string().max(255).optional(),
   channel: z.literal('manual').default('manual'),

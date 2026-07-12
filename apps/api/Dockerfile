@@ -10,7 +10,7 @@
 # ---- Stage 1: deps ------------------------------------------
 FROM node:22-alpine AS deps
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@9
 
 WORKDIR /app
 
@@ -30,6 +30,7 @@ WORKDIR /app
 # Schema Prisma deve chegar antes do generate
 COPY apps/api/prisma ./apps/api/prisma
 COPY apps/api/tsconfig.json ./apps/api/
+COPY apps/api/eslint.config.mjs ./apps/api/
 COPY apps/api/src ./apps/api/src
 
 # 1. Gera o Prisma Client tipado (deve rodar antes do tsc)
@@ -41,7 +42,15 @@ RUN pnpm --filter @saas-atendimento/api run build
 # 3. Deployment self-contained: resolve symlinks, inclui só prod deps
 RUN pnpm deploy --filter @saas-atendimento/api --prod /deploy
 
-# ---- Stage 3: runtime ---------------------------------------
+# 4. `pnpm deploy` reinstala as deps de produção do zero e perde o Prisma
+#    Client gerado no passo 1 (que ficou no node_modules do workspace, não
+#    no /deploy). Regenera o client apontando para o schema copiado em
+#    /deploy — o Prisma escreve o client resolvendo @prisma/client a partir
+#    do schema informado, então o resultado cai no node_modules do /deploy.
+COPY apps/api/prisma/schema.prisma /deploy/prisma/schema.prisma
+RUN pnpm --filter @saas-atendimento/api exec prisma generate --schema=/deploy/prisma/schema.prisma
+
+# ---- Stage 3: runtime (produção) ----------------------------
 FROM node:22-alpine AS runtime
 
 # openssl: necessário para o Prisma Query Engine em Alpine (ADR-0003)
@@ -61,6 +70,22 @@ COPY --from=build /deploy/package.json ./
 EXPOSE 3000
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/v1/health || exit 1
+  CMD wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1
+
+CMD ["node", "dist/index.js"]
+
+# ---- Stage 4: dev (desenvolvimento e testes) ----------------
+# Parte do stage build: tem pnpm + devDeps + código compilado.
+# openssl adicionado aqui porque o Prisma runtime precisa em Alpine.
+FROM build AS dev
+
+RUN apk add --no-cache openssl
+
+WORKDIR /app/apps/api
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1
 
 CMD ["node", "dist/index.js"]

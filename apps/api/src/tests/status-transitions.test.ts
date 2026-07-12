@@ -12,6 +12,9 @@ const JWT_SECRET = 'test-secret-32-chars-do-not-use-in-production!!'
 const ORG_ID = 'org-uuid'
 const USER_ID = 'user-uuid'
 const CONV_ID = 'conv-uuid'
+// Must be valid UUID because patchConversationSchema validates assignedUserId as uuid()
+const AGENT_UUID = '00000000-0000-4000-8000-000000000002'
+const OUTSIDE_UUID = '00000000-0000-4000-8000-000000000099'
 
 const noOpRedis = {} as unknown as Redis
 
@@ -41,7 +44,7 @@ function mockConversation(status = 'open', overrides: Record<string, unknown> = 
 // ----------------------------------------------------------------
 function makePrisma(
   convStatus = 'open',
-  memberForAssign: unknown = { id: 'mem-2', organizationId: ORG_ID, userId: 'agent-uuid', status: 'active' },
+  memberForAssign: unknown = { id: 'mem-2', organizationId: ORG_ID, userId: AGENT_UUID, status: 'active' },
   convOverrides: Record<string, unknown> = {},
 ): PrismaClient {
   const conv = mockConversation(convStatus, convOverrides)
@@ -272,18 +275,18 @@ describe('PATCH /api/v1/conversations/:id — assignedUserId', () => {
   afterEach(async () => { await app?.close() })
 
   it('200 — atribui conversa a membro ativo da org', async () => {
-    const agentMember = { id: 'mem-2', organizationId: ORG_ID, userId: 'agent-uuid', status: 'active', role: 'agent' }
+    const agentMember = { id: 'mem-2', organizationId: ORG_ID, userId: AGENT_UUID, status: 'active', role: 'agent' }
     app = makeApp(makePrisma('open', agentMember))
     const auth = await authHeader(app)
 
     const res = await app.inject({
       method: 'PATCH', url: patchUrl(),
       headers: { authorization: auth },
-      payload: { assignedUserId: 'agent-uuid' },
+      payload: { assignedUserId: AGENT_UUID },
     })
 
     expect(res.statusCode).toBe(200)
-    expect(res.json().data.assignedUserId).toBe('agent-uuid')
+    expect(res.json().data.assignedUserId).toBe(AGENT_UUID)
   })
 
   it('404 — assignedUserId de usuário fora da org', async () => {
@@ -293,14 +296,14 @@ describe('PATCH /api/v1/conversations/:id — assignedUserId', () => {
     const res = await app.inject({
       method: 'PATCH', url: patchUrl(),
       headers: { authorization: auth },
-      payload: { assignedUserId: 'user-outra-org' },
+      payload: { assignedUserId: OUTSIDE_UUID },
     })
 
     expect(res.statusCode).toBe(404)
   })
 
   it('200 — remove atribuição com assignedUserId: null', async () => {
-    app = makeApp(makePrisma('open', null, { assignedUserId: 'agent-uuid' }))
+    app = makeApp(makePrisma('open', null, { assignedUserId: AGENT_UUID }))
     const auth = await authHeader(app)
 
     const res = await app.inject({
@@ -314,14 +317,14 @@ describe('PATCH /api/v1/conversations/:id — assignedUserId', () => {
   })
 
   it('200 — atualiza status e assignedUserId em um único PATCH', async () => {
-    const agentMember = { id: 'mem-2', organizationId: ORG_ID, userId: 'agent-uuid', status: 'active', role: 'agent' }
+    const agentMember = { id: 'mem-2', organizationId: ORG_ID, userId: AGENT_UUID, status: 'active', role: 'agent' }
     app = makeApp(makePrisma('open', agentMember))
     const auth = await authHeader(app)
 
     const res = await app.inject({
       method: 'PATCH', url: patchUrl(),
       headers: { authorization: auth },
-      payload: { status: 'waiting_agent', assignedUserId: 'agent-uuid' },
+      payload: { status: 'waiting_agent', assignedUserId: AGENT_UUID },
     })
 
     expect(res.statusCode).toBe(200)

@@ -7,6 +7,7 @@ import { checkDatabase, checkRedis } from './infra/health'
 import { authRoutes } from './modules/auth/auth.route'
 import { conversationRoutes } from './modules/conversations/conversation.route'
 import { userRoutes } from './modules/users/user.route'
+import { analyticsRoutes } from './modules/analytics/analytics.route'
 import { AppError } from './common/errors'
 import { errorEnvelope } from './common/reply'
 
@@ -44,17 +45,19 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
   app.decorateRequest('authUser', null)
 
   // ---- Global error handler — returns standard envelope --------
-  app.setErrorHandler((error, request, reply) => {
-    if (error instanceof AppError) {
-      return reply.code(error.statusCode).send(
-        errorEnvelope(error.code, error.message, error.details ?? []),
+  app.setErrorHandler((rawError, request, reply) => {
+    const error = rawError as Error & { validation?: unknown[]; statusCode?: number; code?: string }
+
+    if (rawError instanceof AppError) {
+      return reply.code(rawError.statusCode).send(
+        errorEnvelope(rawError.code, rawError.message, rawError.details ?? []),
       )
     }
 
     // Fastify validation errors (schema-level, if used)
-    if ('validation' in error && error.validation) {
+    if (error.validation) {
       return reply.code(400).send(
-        errorEnvelope('VALIDATION_ERROR', 'Invalid request payload', error.validation as unknown[]),
+        errorEnvelope('VALIDATION_ERROR', 'Invalid request payload', error.validation),
       )
     }
 
@@ -63,7 +66,7 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
       return reply.code(401).send(errorEnvelope('UNAUTHENTICATED', 'Authentication required', []))
     }
 
-    request.log.error(error)
+    request.log.error(rawError)
     return reply
       .code(500)
       .send(errorEnvelope('INTERNAL_ERROR', 'Internal server error', []))
@@ -97,6 +100,7 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
   if (opts.prisma) {
     app.register(conversationRoutes, { prisma: opts.prisma })
     app.register(userRoutes, { prisma: opts.prisma })
+    app.register(analyticsRoutes, { prisma: opts.prisma })
   }
 
   return app

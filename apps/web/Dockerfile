@@ -4,7 +4,9 @@
 #
 # Stage 1 deps    — instala dependências do workspace
 # Stage 2 build   — compila a SPA com Vite
-# Stage 3 runtime — servidor estático Node (serve)
+# Stage 3 runtime — servidor estático Node (serve), usado em produção
+# Stage 4 dev     — mesma saída do build, mas com pnpm + devDeps
+#                   disponíveis para rodar testes (docker compose run --rm web pnpm test)
 #
 # VITE_API_BASE_URL é injetada em build-time via ARG do Compose.
 # Para ambientes onde a URL da API muda em runtime, substitua o
@@ -14,7 +16,7 @@
 # ---- Stage 1: deps ------------------------------------------
 FROM node:22-alpine AS deps
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@9
 
 WORKDIR /app
 
@@ -39,6 +41,7 @@ COPY apps/web/index.html        ./apps/web/
 COPY apps/web/vite.config.ts    ./apps/web/
 COPY apps/web/tsconfig.json     ./apps/web/
 COPY apps/web/tsconfig.node.json ./apps/web/
+COPY apps/web/eslint.config.mjs ./apps/web/
 COPY apps/web/src               ./apps/web/src
 
 RUN pnpm --filter @saas-atendimento/web run build
@@ -51,6 +54,18 @@ RUN npm install -g serve
 WORKDIR /app
 
 COPY --from=build /app/apps/web/dist ./dist
+
+EXPOSE 5173
+
+# -s: single-page app (redireciona 404 para index.html)
+CMD ["serve", "-s", "dist", "-l", "5173"]
+
+# ---- Stage 4: dev (testes) ------------------------------------
+FROM build AS dev
+
+RUN npm install -g serve
+
+WORKDIR /app/apps/web
 
 EXPOSE 5173
 

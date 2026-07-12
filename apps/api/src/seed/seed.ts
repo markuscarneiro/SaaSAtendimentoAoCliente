@@ -219,7 +219,7 @@ export async function runSeed(prisma: PrismaClient): Promise<void> {
 }
 
 // ----------------------------------------------------------------
-// Entry point
+// Entry point — só executa quando o arquivo é rodado diretamente
 // ----------------------------------------------------------------
 async function main() {
   const prisma = getDatabase()
@@ -230,7 +230,9 @@ async function main() {
   }
 }
 
-main().catch((err: unknown) => {
-  process.stderr.write(`[seed] FATAL: ${String(err)}\n`)
-  process.exit(1)
-})
+if (require.main === module) {
+  main().catch((err: unknown) => {
+    process.stderr.write(`[seed] FATAL: ${String(err)}\n`)
+    process.exit(1)
+  })
+}

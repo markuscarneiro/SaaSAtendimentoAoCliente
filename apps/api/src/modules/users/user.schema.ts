@@ -4,7 +4,7 @@ const ASSIGNABLE_ROLES = ['admin', 'manager', 'agent', 'viewer'] as const
 
 export const createUserSchema = z.object({
   name: z.string().min(1).max(255),
-  email: z.string().email().max(255),
+  email: z.string().trim().email().max(255),
   password: z.string().min(8).max(72),
   role: z.enum(ASSIGNABLE_ROLES),
 })

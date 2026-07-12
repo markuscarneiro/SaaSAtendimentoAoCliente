@@ -43,7 +43,9 @@ function mockTargetUser(overrides: Record<string, unknown> = {}) {
 function makePrisma(overrides: Record<string, unknown> = {}): PrismaClient {
   const base: Record<string, unknown> = {
     user: {
-      findUnique: vi.fn().mockResolvedValue(null),  // no duplicate by default
+      // First call: authenticate middleware looks up the requesting user by ID.
+      // Subsequent calls: createUser checks for duplicate by email (should be null).
+      findUnique: vi.fn().mockResolvedValueOnce(mockRequester).mockResolvedValue(null),
       create: vi.fn().mockResolvedValue(mockTargetUser()),
     },
     organization: { create: vi.fn() },
@@ -93,7 +95,7 @@ describe('POST /api/v1/users', () => {
     const newUser = mockTargetUser({ id: TARGET_ID, name: 'Bob', email: 'bob@test.com' })
     const prisma = makePrisma({
       user: {
-        findUnique: vi.fn().mockResolvedValue(null),
+        findUnique: vi.fn().mockResolvedValueOnce(mockRequester).mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(newUser),
       },
       organizationMember: {
@@ -122,7 +124,7 @@ describe('POST /api/v1/users', () => {
   it('201 — normaliza email para lowercase antes de criar', async () => {
     const prisma = makePrisma({
       user: {
-        findUnique: vi.fn().mockResolvedValue(null),
+        findUnique: vi.fn().mockResolvedValueOnce(mockRequester).mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(mockTargetUser({ email: 'bob@test.com' })),
       },
       organizationMember: {

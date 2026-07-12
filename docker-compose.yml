@@ -14,6 +14,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      target: dev
     ports:
       - "${API_PORT:-3000}:3000"
     environment:
@@ -31,7 +32,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/v1/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -47,6 +48,7 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      target: dev
       args:
         VITE_API_BASE_URL: ${API_BASE_URL:-http://localhost:3000}
     ports:
@@ -100,6 +102,27 @@ services:
     networks:
       - internal
     restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Smoke test — validação mínima do ambiente (deployment-spec.md §7)
+  # Uso: docker compose run --rm smoke-test
+  # ----------------------------------------------------------
+  smoke-test:
+    image: node:22-alpine
+    profiles: ["tools"]
+    volumes:
+      - ./scripts/smoke-test.mjs:/smoke-test.mjs:ro
+    environment:
+      API_URL: http://api:3000
+      WEB_URL: http://web:5173
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
+    networks:
+      - internal
+    command: ["node", "/smoke-test.mjs"]
 
 networks:
   internal:
