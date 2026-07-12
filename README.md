@@ -39,13 +39,21 @@ Para explorar o dashboard com dados de exemplo, rode o seed (`docker compose run
 
 ## Screenshots
 
-| Login | Conversas |
-|---|---|
-| ![Tela de login](docs/screenshots/login.png) | ![Lista de conversas](docs/screenshots/conversations.png) |
+### Login
 
-| Detalhe da conversa | Analytics |
-|---|---|
-| ![Detalhe da conversa](docs/screenshots/conversation-detail.png) | ![Tela de analytics](docs/screenshots/analytics.png) |
+![Tela de login](docs/screenshots/login.png)
+
+### Conversas
+
+![Lista de conversas](docs/screenshots/conversations.png)
+
+### Detalhe da conversa
+
+![Detalhe da conversa](docs/screenshots/conversation-detail.png)
+
+### Analytics
+
+![Tela de analytics](docs/screenshots/analytics.png)
 
 ## Deploy
 
