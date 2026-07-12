@@ -35,6 +35,18 @@ docker compose down                           # para os containers (mantém dado
 docker compose down -v                        # reset completo (apaga volumes)
 ```
 
+Para explorar o dashboard com dados de exemplo, rode o seed (`docker compose run --rm api pnpm db:seed`) e acesse http://localhost:5173. Credenciais de demo em [`docs/sdd/specs/seed-spec.md`](docs/sdd/specs/seed-spec.md).
+
+## Screenshots
+
+| Login | Conversas |
+|---|---|
+| ![Tela de login](docs/screenshots/login.png) | ![Lista de conversas](docs/screenshots/conversations.png) |
+
+| Detalhe da conversa | Analytics |
+|---|---|
+| ![Detalhe da conversa](docs/screenshots/conversation-detail.png) | ![Tela de analytics](docs/screenshots/analytics.png) |
+
 ## Deploy
 
 Spec de referência: [Deployment Spec](docs/sdd/specs/deployment-spec.md).
